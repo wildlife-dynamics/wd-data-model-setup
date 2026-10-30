@@ -1,0 +1,151 @@
+# Compile-time cases for the setup workflow.
+#
+# The planning logic itself is tested offline in
+# src/ecoscope-workflows-ext-wdmodel/tests -- 21 cases, no network, no instance.
+# What these exercise is the compiled shape: that the params model accepts what
+# the form sends, that the task graph runs, and that the table widget renders.
+#
+# Keys are FLAT task ids. Task-group titles ("Target", "Plan") never appear --
+# the compiled params model is flat, which is what `ecoscope:task_group: true`
+# arranges at submit time.
+#
+# `base` sets every param carrying an rjsf default explicitly, because an
+# omitted param falls back to the PYDANTIC default rather than the one the form
+# displays. Every other case is a delta from base.
+
+base:
+  name: Base case
+  description: >-
+    The whole model, planned against an empty instance. This is what a user gets
+    by submitting the untouched form: all four categories, the shipped species
+    list, nothing activated. Exercises the full plan path -- 4 categories, 125
+    choice lists, 27 event types and their schemas.
+  mock_io: true
+  params:
+    workflow_details:
+      name: "WD data model setup"
+      description: "Plan the full standard model."
+    groupers:
+      groupers: []
+    er_target:
+      data_source:
+        name: ""
+    # Asked for on every run, read on none of these -- mode is standard
+    # throughout, so the task never touches it.
+    er_source:
+      data_source:
+        name: ""
+    setup:
+      mode: "Set up the WD standard model"
+      categories:
+        - animal_health
+        - field_monitoring
+        - hwc
+        - rangeland_monitoring
+      dry_run: true
+      species_list: ""
+      species_csv: ""
+      activate: false
+      prefix: ""
+      replace_schema: false
+
+subset:
+  name: Two categories only
+  description: >-
+    Animal Health and HWC, the slice a site with no rangeland programme would
+    take. Proves the selection actually narrows the work -- 7 types rather than
+    27 -- and that choice lists are scoped to the selected schemas instead of
+    dragging the rangeland vocabulary onto an instance that will never use it.
+  mock_io: true
+  params:
+    workflow_details:
+      name: "WD data model setup - subset"
+      description: "Animal Health and HWC only."
+    groupers:
+      groupers: []
+    er_target:
+      data_source:
+        name: ""
+    # Asked for on every run, read on none of these -- mode is standard
+    # throughout, so the task never touches it.
+    er_source:
+      data_source:
+        name: ""
+    setup:
+      mode: "Set up the WD standard model"
+      categories:
+        - animal_health
+        - hwc
+      dry_run: true
+      species_list: ""
+      species_csv: ""
+      activate: false
+      prefix: ""
+      replace_schema: false
+
+rehearsal:
+  name: Prefixed rehearsal, activated
+  description: >-
+    Both remaining switches flipped together: a trw_ prefix so the rehearsal
+    does not consume the event type values the real build needs later, and
+    activate on, which is the only setting under which anything is visible in
+    EarthRanger after the run. Combined into one case because they do not
+    interact.
+  mock_io: true
+  params:
+    workflow_details:
+      name: "WD data model setup - rehearsal"
+      description: "Prefixed and activated."
+    groupers:
+      groupers: []
+    er_target:
+      data_source:
+        name: ""
+    # Asked for on every run, read on none of these -- mode is standard
+    # throughout, so the task never touches it.
+    er_source:
+      data_source:
+        name: ""
+    setup:
+      mode: "Set up the WD standard model"
+      categories:
+        - animal_health
+      dry_run: true
+      species_list: ""
+      species_csv: ""
+      activate: true
+      prefix: "trw_"
+      replace_schema: false
+
+site_species:
+  name: Site supplies its own species list
+  description: >-
+    Repoints every species field at a list the instance already has, rather than
+    creating the shipped one. This is the MMNR case -- there the list was
+    wildlifesightingrep_species. Exercises the $ref rewrite and the warning path
+    when the named list is absent from the target.
+  mock_io: true
+  params:
+    workflow_details:
+      name: "WD data model setup - site species"
+      description: "Repoint species at an existing list."
+    groupers:
+      groupers: []
+    er_target:
+      data_source:
+        name: ""
+    # Asked for on every run, read on none of these -- mode is standard
+    # throughout, so the task never touches it.
+    er_source:
+      data_source:
+        name: ""
+    setup:
+      mode: "Set up the WD standard model"
+      categories:
+        - field_monitoring
+      dry_run: true
+      species_list: "wildlifesightingrep_species"
+      species_csv: ""
+      activate: false
+      prefix: ""
+      replace_schema: false
