@@ -41,7 +41,7 @@
         "data_source": {
           "$ref": "#/$defs/EarthRangerConnection",
           "title": "Instance to copy from",
-          "description": "Only used when the mode below is set to copying, and only ever read, never written to. On a standard-model run nothing reads it, so point it at any instance -- the same one you are setting up is the simplest answer. The app asks for it either way."
+          "description": "Only used when the mode below is set to copying, and only ever read, never written to. On a standard-model run nothing reads it, so point it at any instance - the same one you are setting up is the simplest answer. The app asks for it either way."
         }
       },
       "required": [
@@ -52,7 +52,7 @@
     },
     "Set up": {
       "type": "object",
-      "description": "Start with \"What this run should do\". It decides which of the fields below are read -- the standard-model fields, or the copy fields -- and the others are ignored outright, not quietly applied. Leave Dry run on first and read the table: it lists every intended write without making any, and flags any choice list that already exists on the instance with different options. EarthRanger has no undo -- a category cannot be safely deleted, and an event type that has taken a single record cannot be removed.",
+      "description": "Start with \"What this run should do\". It decides which of the fields below are read - the standard-model fields, or the copy fields - and the others are ignored outright. Leave Dry run on first and read the table: it lists every intended write without making any, and flags any choice list that already exists on the instance with different options.",
       "ecoscope:task_group": true,
       "properties": {
         "setup": {
