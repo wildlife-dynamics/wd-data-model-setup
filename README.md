@@ -31,14 +31,11 @@ reachable, and two runs months apart produce the same thing.
 
 ---
 
-## Before you start
-
-No command line and no EarthRanger admin until after the run. Two things in
-Ecoscope Desktop first.
+## How to run
 
 **Add the instance under Data Sources.** The same credentials read the current
 configuration and write the new model — there is no second login. On Desktop
-1.3.0 and later they are checked when you save the connection, so a wrong
+1.3.0 and later, they are checked when you save the connection, so a wrong
 password fails there rather than halfway through.
 
 Use an account with **configuration rights**. Creating categories, choice
@@ -48,9 +45,6 @@ usual answer.
 **Add the template**, under Workflow Templates → Add template, from the
 repository URL. The first add downloads an environment and takes a few
 minutes; later runs are quick.
-
-> When the template changes, **delete and re-add it**. Templates do not update
-> in place, and a stale one runs the old code without saying so.
 
 ---
 
@@ -103,12 +97,12 @@ Nothing is rolled back; fix the cause and run again.
 Unless you ticked **Activate the event types immediately**, they were created
 inactive — and a category with no active event types is invisible in
 EarthRanger **to everyone, superusers included**. You will see nothing at all
-until they are activated, in Django admin under `/admin/activity/eventtype/`.
+until they are activated, in admin under `/admin/activity/eventtype/`.
 
 ### 4. Grant access
 
 A new category's permissions start with **only the account that ran the
-workflow**. Nobody else can see it until you add them, in Django admin under
+workflow**. Nobody else can see it until you add them, in admin under
 `/admin/accounts/permissionset/`.
 
 Each category has **two** permission sets, and you need both:
@@ -201,8 +195,6 @@ tusk_status   -> fm_tusk_status     different options, renamed
 action_taken  -> fm_action_taken    different options, renamed
 species                             identical, shared as-is
 ```
-
-This is exactly what MMNR's copy of the standard model needed.
 
 **Only clashing lists are renamed.** One whose options already match is shared.
 Renaming everything would give each instance a private vocabulary and defeat
@@ -321,151 +313,3 @@ prefix applies to event types only, not to choice lists, so a prefixed
 rehearsal still reports the same collision warnings a real run would.
 
 ---
-
-## Publishing a template other people can install
-
-Read this before telling anyone to add the template. As the repository stands
-after a normal `pixi run -e compile compile`, **the compiled workflow
-installs on the machine that compiled it and nowhere else.**
-
-`pixi run build-release` writes the task package to a local channel under
-`/tmp`, and the compiled `pixi.lock` records that path verbatim:
-
-```
-- conda: /tmp/ecoscope-workflows-custom/release/artifacts/noarch/ecoscope-workflows-ext-wdmodel-0.0.1-pyh4616a5c_0.conda
-```
-
-That is right while iterating — a task change is one compile away rather than
-a tag and a publish. It is wrong for distribution: anyone else gets a lock
-pointing at a file they do not have, and so do you once `/tmp` is cleared by
-a reboot. Nothing warns you. The repository looks complete and the failure
-lands on the first person who tries to use it.
-
-### How a release is cut
-
-Three workflows, the same chain every published Ecoscope workflow uses. You
-do not tag by hand and there is no API key to hold:
-
-```
-VERSION.yaml  →  tag.yml      on PR merge to main: cuts vMAJ.MIN.PATCH
-                              and creates the GitHub Release
-              →  publish.yml  on that tag: calls _build.yml, then uploads
-              →  _build.yml   runs publish/build.sh, uploads the artifact
-```
-
-`publish.yml` authenticates to the channel with an **OIDC token**
-(`permissions: id-token: write`), so `publish/push.sh` works in CI and fails
-locally — tag a release rather than pushing from your machine.
-
-The package version comes from the tag via `hatch-vcs`, which is why
-`_build.yml` checks out with `fetch-depth: 0`. **Bump
-`ecoscope-workflows-wd-data-model-setup-workflow/VERSION.yaml` in the PR**:
-`tag.yml` refuses a tag that already exists, so an unbumped version fails the
-PR check rather than silently republishing.
-
-### Then, by hand
-
-**3.** Point the requirement in `spec.yaml` at the remote channel, pinned to
-the version just published:
-
-```yaml
-  - name: ecoscope-workflows-ext-wdmodel
-    version: 0.1.0                                                # not "*"
-    channel: https://repo.prefix.dev/ecoscope-workflows-custom/   # not file:///tmp/...
-```
-
-An exact version, not `"*"`. The published template should pin what it was
-tested against; `"*"` is for local iteration against the `/tmp` channel.
-
-```bash
-# 4. recompile. CLEAN_CACHE because channel repodata is cached and a package
-#    published two minutes ago is otherwise invisible to the solver.
-CLEAN_CACHE=1 MAX_LOCKFILE_VERSION=7 pixi run -e compile compile
-
-# 5. check before committing
-grep wdmodel ecoscope-workflows-*-workflow/pixi.lock | head -1
-```
-
-An `https://` URL means it will install anywhere. A `/tmp` path means step 3
-or 4 did not take, and the template is still local-only.
-
-**6.** Commit the regenerated `pixi.lock` and the compiled package directory.
-Desktop installs from that lock, so an uncommitted lock means nobody gets the
-fix.
-
-Steps 3–6 stay manual deliberately: a CI job that rewrites `spec.yaml` and
-commits a lock is a job that can quietly publish the wrong thing.
-
-They also mean the first release takes **two PRs** — one that merges the code
-and cuts the tag, and one that repoints `spec.yaml` at the version that tag
-published and commits the recompiled lock. There is no way round that
-ordering: the version does not exist until the tag is cut.
-
-To go back to iterating, put the `file:///tmp/...` channel and `version: "*"`
-back. Just do not commit a template in that state and call it released.
-
----
-
-## Development
-
-```bash
-pixi run pytest                   # offline, no instance needed
-pixi run build-release            # build the task package to the local channel
-pixi run -e compile compile       # compile spec.yaml against it
-./dev/cleanup.sh                  # list dead files; --delete to remove them
-```
-
-The planning and apply logic lives in
-`src/ecoscope-workflows-ext-wdmodel/` and is pure — the network is reached only
-through a `send` callable, so the ordering rule and the stop-on-failure
-behaviour are tested without an instance.
-
-The ordering rule, which must not move:
-
-```
-categories -> choice lists -> event types -> schemas
-```
-
-A schema whose references point at lists that do not exist yet is accepted by
-the API and renders as empty dropdowns.
-
-### One template, two modes
-
-There was briefly a second template for the copy path. It worked, but it made
-the operator choose before they could see what either option did. One
-template with a `mode` dropdown is the same separation with the choice in a
-place where the consequences are visible.
-
-The long comment in `spec.yaml` is the part worth keeping: it records what
-Ecoscope Desktop does and does not let a spec control, which is documented
-nowhere else. `./dev/cleanup.sh` removes what the abandoned approaches left
-behind.
-
-### Which API root
-
-Event types are **v2** and everything else is **v1**:
-
-```
-https://host/api/v1.0/activity/events/categories
-https://host/api/v1.0/choices
-https://host/api/v2.0/activity/eventtypes/
-```
-
-erclient is constructed with the v1.0 root and joins relative paths onto it,
-so an event-type path has to be routed deliberately — `_rooted_for` in
-`tasks/setup/_apply.py` swaps the root for the duration of the call, since
-`_post` and `_patch` will not accept a full URL. Getting this wrong produces
-a bare `ERClientNotFound('')` with no path in the message, so
-`tests/test_api_roots.py` asserts the URLs directly.
-
-Schemas come one type at a time from `activity/eventtypes/<id>/
-?include_schema=true`. The list endpoint ignores `include_schema`, and a copy
-built on the list alone finds every schema empty and reports nothing to do.
-
-### Where the model came from
-
-`src/ecoscope-workflows-ext-wdmodel/ecoscope_workflows_ext_wdmodel/data/wd-standard-model-v2.json`,
-exported from the `trwg_` test build on
-`wildlifedynamics.pamdas.org` and reconciled against the live Westgate,
-Naibunga and MMNR instances. See `RECONCILIATION.md` for what was taken from
-where.
