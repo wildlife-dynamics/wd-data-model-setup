@@ -29,6 +29,10 @@ jobs:
       - build-release
     runs-on: ubuntu-latest
     permissions:
+      # A job-level `permissions:` block replaces the whole set, so contents
+      # has to be restated or actions/checkout fails on a private repository
+      # with "repository not found".
+      contents: read
       # Trusted publishing. The channel authenticates this repository through
       # the OIDC token, so there is no API key to hold or rotate -- which is
       # why nothing here reads a secret.

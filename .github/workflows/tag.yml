@@ -93,3 +93,59 @@ jobs:
           '${{ needs.generate-tag.outputs.tag }}'
           --repo '${{ github.repository }}'
           --generate-notes
+<<<<<<< Updated upstream
+=======
+
+  # Publishing happens HERE, in the same workflow run that cut the tag, and
+  # not by letting publish.yml react to the tag push.
+  #
+  # GitHub does not start new workflow runs from events raised by the default
+  # GITHUB_TOKEN -- the guard against a workflow triggering itself forever.
+  # cut-release pushes its tag with that token, so publish.yml never fires and
+  # the release sits there with no package behind it. Staying inside one run
+  # sidesteps that without putting a long-lived PAT in the repository.
+  #
+  # publish.yml is still there for a tag pushed by hand, and for re-running a
+  # release whose upload failed.
+  build-release:
+    needs: cut-release
+    uses: ./.github/workflows/_build.yml
+    with:
+      # The merge commit, not the pull_request event's synthetic
+      # refs/pull/N/merge -- the new tag points at the former, and the
+      # version is read from the tag.
+      ref: ${{ github.event.pull_request.merge_commit_sha }}
+
+  publish-to-prefix:
+    needs:
+      - build-release
+    runs-on: ubuntu-latest
+    permissions:
+      # contents: read is NOT redundant. A job-level `permissions:` block
+      # replaces the whole set rather than adding to it, so listing only
+      # id-token leaves contents at `none` -- and on a private repository
+      # actions/checkout then fails with "repository not found", which reads
+      # like the repo is missing rather than like a permissions problem.
+      contents: read
+      id-token: write
+    steps:
+      - name: Download conda channel
+        uses: actions/download-artifact@v4
+        with:
+          name: release-artifacts
+          path: /tmp/ecoscope-workflows-custom/release/artifacts
+
+      - name: Log conda channel contents
+        run: ls -lR /tmp/ecoscope-workflows-custom/release/artifacts
+
+      - uses: actions/checkout@v6
+
+      - name: Install pixi
+        run: curl -fsSL https://pixi.sh/install.sh | bash && echo "$HOME/.pixi/bin" >> $GITHUB_PATH
+
+      - name: Install rattler-build
+        run: pixi global install rattler-build
+
+      - name: Publish to prefix.dev
+        run: bash ./publish/push.sh
+>>>>>>> Stashed changes
