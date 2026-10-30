@@ -1,13 +1,17 @@
 name: Publish
 
-# Manual only. The automatic path lives in tag.yml, which builds and
-# publishes in the same run that cuts the tag -- see the comment there.
+# Runs on the tag that tag.yml cuts when a PR to main merges.
 #
-# Deliberately NOT `on: push: tags`. With tag.yml publishing inline, a tag
-# trigger here would mean two uploads of the same version, and the second
-# fails on a duplicate. This is the retry button: pick the tag as the ref
-# when a release needs republishing, or when a tag was pushed by hand.
+# This file's NAME matters: the prefix.dev trusted publisher is registered
+# against the repository and this workflow filename, so the upload has to
+# happen from here. Renaming it, or publishing from another workflow, fails
+# with "Failed to find OIDC publisher".
 on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+      - "v[0-9]+.[0-9]+.[0-9]+rc[0-9]+"
+  # Retry button: pick the tag as the ref when an upload needs rerunning.
   workflow_dispatch:
 
 concurrency:
