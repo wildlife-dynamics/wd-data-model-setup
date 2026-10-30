@@ -1,0 +1,79 @@
+[workspace]
+name = "wd-data-model-setup"
+channels = [
+  'https://repo.prefix.dev/ecoscope-workflows/',
+  'conda-forge',
+  'https://repo.prefix.dev/ecoscope-workflows-custom/',
+]
+platforms = ['linux-64', 'osx-arm64', 'win-64']
+
+[dependencies]
+pyyaml = "*"
+pytest = "*"
+curl = "*"
+rattler-build = "*"
+# go-yq specifically: dev/run-test-cases.sh parses test-cases.yaml with it,
+# and the python "yq" is a different tool with different syntax.
+go-yq = "*"
+hatch = "*"
+pip = "*"
+wt-compiler = "==0.8.0"
+graphviz = "*"
+
+[feature.compile.dependencies]
+pyyaml = "*"
+ecoscope-workflows-ext-custom = "0.1.0rc14.*"
+graphviz = "*"
+wt-compiler = "==0.8.0"
+# wt-compiler formats generated code by shelling out to `python -m ruff`, so it
+# needs the ruff MODULE importable -- the CLI on PATH is not enough. It does not
+# declare the dependency itself.
+#
+# Pinned to 0.16 deliberately. conda-forge's ruff ships `site-packages/ruff/`
+# up to 0.16.6 and only the binary from 0.17 on, so an unpinned `ruff = "*"`
+# resolves to 0.17.x and the compile dies with "No module named ruff" AFTER
+# passing spec validation -- which reads like a spec problem and is not one.
+# 0.16.6 is the build er-model-migration compiles against today.
+#
+# The durable fix is to stop wt-compiler shelling out to `python -m ruff` (it
+# could call the binary); until then this pin is load-bearing, so do not relax
+# it to "*" without checking that the chosen build still has the module.
+ruff = "0.16.*"
+
+[environments]
+compile = { features = ["compile"], solve-group = "compile", no-default-feature = true }
+
+# Both rebuild the task package into the local channel first, because spec.yaml
+# resolves ecoscope-workflows-ext-wdmodel from there. Without that, a compile
+# picks up whatever was last built -- or fails outright, if it never has been.
+#
+# The environment has to be named. `build-release` lives in the default feature,
+# which this environment excludes with no-default-feature, and a bare
+# depends-on = ["build-release"] is resolved within the current environment only
+# -- it fails with "could not find the task 'build-release'". The build needs the
+# default environment anyway: that is where hatch and rattler-build are.
+[feature.compile.tasks.compile]
+cmd = './dev/recompile.sh --install'
+depends-on = [{ task = "build-release", environment = "default" }]
+
+[feature.compile.tasks.recompile]
+cmd = './dev/recompile.sh --no-install'
+depends-on = [{ task = "build-release", environment = "default" }]
+
+# The same compile without rebuilding the package, for iterating on spec.yaml
+# alone. Much faster: no rattler-build, no cache clear.
+[feature.compile.tasks.compile-spec-only]
+cmd = 'SKIP_CACHE_CLEAN=1 ./dev/recompile.sh --install'
+
+# Offline. The planning logic needs no instance and no network, so run these
+# before spending a compile -- let alone a dry run -- finding the same thing.
+[tasks.pytest]
+cmd = 'python -m pytest src/ecoscope-workflows-ext-wdmodel/tests -q'
+
+[tasks.build-release]
+cmd = './publish/build.sh'
+
+# No publish task. Uploading is done by .github/workflows/publish.yml on a
+# version tag, authenticated with an OIDC token that only exists inside the
+# Actions run -- publish/push.sh cannot work from a laptop, and a pixi task
+# implying otherwise would just produce a confusing auth failure.

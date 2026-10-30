@@ -1,0 +1,40 @@
+[project]
+name = "ecoscope-workflows-ext-wdmodel"
+# Derived from the git tag, like every other published Ecoscope workflow. A
+# static version cannot be published twice -- the channel rejects a re-upload
+# of the same version and build number -- so the release flow needs the
+# version to move on its own:
+#
+#   VERSION.yaml -> tag.yml cuts vMAJ.MIN.PATCH on merge -> hatch-vcs reads it
+#
+# fallback-version keeps a bare checkout with no tags building, which is what
+# the compile needs locally.
+dynamic = ["version"]
+requires-python = ">=3.10"
+description = "Tasks for provisioning the WD standard data model onto an EarthRanger instance."
+readme = "README.md"
+license = { text = "BSD-3-Clause" }
+dependencies = ["wt-registry", "pandas"]
+
+[project.entry-points."wt_registry"]
+tasks = "ecoscope_workflows_ext_wdmodel.tasks"
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+fallback-version = "0.0.0"
+
+[tool.hatch.build.targets.wheel]
+packages = ["ecoscope_workflows_ext_wdmodel"]
+# The model ships inside the wheel. It is the same standard model for every
+# organisation, so a site supplies nothing -- which is what lets one run set up a
+# brand new instance with no reference instance reachable.
+only-packages = false
+artifacts = ["ecoscope_workflows_ext_wdmodel/data/*.json"]
+
+[tool.hatch.build.targets.sdist]
+include = ["ecoscope_workflows_ext_wdmodel"]
+artifacts = ["ecoscope_workflows_ext_wdmodel/data/*.json"]

@@ -1,0 +1,209 @@
+{
+  "properties": {
+    "workflow_details": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "title": "Workflow Name",
+          "type": "string"
+        },
+        "description": {
+          "default": "",
+          "title": "Workflow Description",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object",
+      "description": "Add information that will help to differentiate this workflow from another.",
+      "title": "Workflow Details"
+    },
+    "er_target": {
+      "additionalProperties": false,
+      "properties": {
+        "data_source": {
+          "$ref": "#/$defs/EarthRangerConnection",
+          "title": "EarthRanger instance to set up",
+          "description": "The instance being written to, chosen from the connections saved under Data Sources. The same credentials read and write -- there is no second login."
+        }
+      },
+      "required": [
+        "data_source"
+      ],
+      "type": "object",
+      "title": "Instance to set up"
+    },
+    "er_source": {
+      "additionalProperties": false,
+      "properties": {
+        "data_source": {
+          "$ref": "#/$defs/EarthRangerConnection",
+          "title": "Instance to copy from",
+          "description": "Only used when the mode below is set to copying, and only ever read, never written to. On a standard-model run nothing reads it, so point it at any instance -- the same one you are setting up is the simplest answer. The app asks for it either way."
+        }
+      },
+      "required": [
+        "data_source"
+      ],
+      "type": "object",
+      "title": "Instance to copy from (ignored unless the mode says to copy)"
+    },
+    "Set up": {
+      "type": "object",
+      "description": "Start with \"What this run should do\". It decides which of the fields below are read -- the standard-model fields, or the copy fields -- and the others are ignored outright, not quietly applied. Leave Dry run on first and read the table: it lists every intended write without making any, and flags any choice list that already exists on the instance with different options. EarthRanger has no undo -- a category cannot be safely deleted, and an event type that has taken a single record cannot be removed.",
+      "ecoscope:task_group": true,
+      "properties": {
+        "setup": {
+          "additionalProperties": false,
+          "properties": {
+            "mode": {
+              "default": "Set up the WD standard model",
+              "enum": [
+                "Set up the WD standard model",
+                "Copy event types from another instance"
+              ],
+              "title": "What this run should do",
+              "type": "string",
+              "description": "Set up the standard model: creates the WD standard model from the categories below, and IGNORES the copy fields and the second data source entirely. Copy event types: brings types across from the instance chosen as the second data source, and ignores the categories and species fields instead. The second data source is asked for either way -- that is the app, not this workflow -- but on a standard run nothing reads it, so point it anywhere."
+            },
+            "categories": {
+              "items": {
+                "enum": [
+                  "animal_health",
+                  "field_monitoring",
+                  "hwc",
+                  "rangeland_monitoring"
+                ],
+                "type": "string"
+              },
+              "title": " ",
+              "type": "array",
+              "description": "Which parts of the standard model to set up. Leave all four selected for the whole thing.",
+              "uniqueItems": true
+            },
+            "dry_run": {
+              "default": true,
+              "title": "Dry run - create nothing",
+              "type": "boolean",
+              "description": "Leave ON to create nothing and just list what is missing. Turn it off to write. There is no undo in EarthRanger: a category cannot be safely deleted and an event type that has taken one record cannot be removed."
+            },
+            "species_list": {
+              "default": "",
+              "title": "Use a species list already on this instance",
+              "type": "string",
+              "description": "Leave empty to create the standard 66-entry species list. To use a list this instance already has, name it here and every species field is repointed at it instead of a second list being created."
+            },
+            "species_csv": {
+              "default": "",
+              "title": "Or load species from a CSV file",
+              "type": "string",
+              "description": "Path to a CSV of species to create instead of the standard list. Needs a header row and the columns value,display with an optional ordernum -- for example: grevys_zebra,Grevy's Zebra,10 . 'value' is stored on every record and is matched by the form's conditionals, so it must be lowercase letters, digits and underscores, and it can never be changed once data exists. 'display' is what the ranger sees. 'ordernum' sets the order in the dropdown and defaults to alphabetical. The whole file is checked before anything is written."
+            },
+            "activate": {
+              "default": false,
+              "title": "Activate the event types immediately",
+              "type": "boolean",
+              "description": "Create the event types ACTIVE. A category with no active types is invisible in EarthRanger to everyone, superusers included -- so with this off you will see nothing until you activate them. Note that a new category's permissions start with only the account running this, so nobody else can see it either way."
+            },
+            "copy_event_types": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Event types to copy",
+              "type": "array",
+              "description": "LEAVE EMPTY to set up the WD standard model chosen above -- this field is what decides between the two. Fill it in only to copy instead: the list shows the event types on whatever instance is selected under 'Copy from', and each type you pick brings its category and its choice lists with it.",
+              "uniqueItems": true,
+              "ecoscope:transform": [
+                {
+                  "transformer": "EarthRangerEnumResolver",
+                  "transformer_kws": {
+                    "type": "event_type",
+                    "depends_on": "properties.er_source.properties.data_source.properties.name"
+                  }
+                }
+              ]
+            },
+            "copy_into_category": {
+              "default": "",
+              "title": "Put them all in this category (blank = keep the source's)",
+              "type": "string",
+              "description": "Only used when copying. Leave empty to keep each type in the category it has on the source. Set it to put all the copied types into one category on the target instead -- this is how Westgate's field_monitoring_2 types were written into MMNR as plain field_monitoring. Lowercase letters, digits and underscores; it is created if it is not already there."
+            },
+            "collision_prefix": {
+              "default": "",
+              "title": "Prefix for clashing choice lists (e.g. fm_)",
+              "type": "string",
+              "description": "Only used when copying. If a choice list arriving from the source has the same name as one already on the target but different options, give the incoming one this prefix -- e.g. 'fm_' turns tusk_status into fm_tusk_status. Only clashing lists are renamed; ones that already match are shared. Leave empty to skip them instead, in which case the forms bind to the target's version and any rule keyed on a missing value silently never fires."
+            },
+            "prefix": {
+              "default": "",
+              "title": "Event type prefix (blank for a real build)",
+              "type": "string",
+              "description": "Prefix every event type value, e.g. 'trw_' for a rehearsal. Values are unique per instance, so an unprefixed test build takes the name the real one needs later.",
+              "ecoscope:advanced": true
+            },
+            "replace_schema": {
+              "default": false,
+              "title": "Replace schemas that already exist",
+              "type": "boolean",
+              "description": "Also rewrite the schema of event types that already exist. Off by default: it would replace a live form, possibly one somebody else built.",
+              "ecoscope:advanced": true
+            }
+          },
+          "required": [],
+          "type": "object",
+          "title": " "
+        }
+      }
+    }
+  },
+  "$defs": {
+    "EarthRangerConnection": {
+      "properties": {
+        "name": {
+          "title": "Data Source",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "EarthRangerConnection",
+      "type": "object"
+    }
+  },
+  "uiSchema": {
+    "workflow_details": {
+      "ui:order": [
+        "name",
+        "description"
+      ]
+    },
+    "Set up": {
+      "setup": {
+        "ui:order": [
+          "mode",
+          "categories",
+          "dry_run",
+          "species_list",
+          "species_csv",
+          "activate",
+          "copy_event_types",
+          "copy_into_category",
+          "collision_prefix",
+          "prefix",
+          "replace_schema"
+        ]
+      }
+    },
+    "ui:order": [
+      "workflow_details",
+      "er_target",
+      "er_source",
+      "Set up"
+    ]
+  },
+  "additionalProperties": false
+}
