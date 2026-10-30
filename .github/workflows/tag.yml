@@ -119,6 +119,12 @@ jobs:
       - build-release
     runs-on: ubuntu-latest
     permissions:
+      # contents: read is NOT redundant. A job-level `permissions:` block
+      # replaces the whole set rather than adding to it, so listing only
+      # id-token leaves contents at `none` -- and on a private repository
+      # actions/checkout then fails with "repository not found", which
+      # reads like a missing repo rather than a missing scope.
+      contents: read
       id-token: write
     steps:
       - name: Download conda channel
