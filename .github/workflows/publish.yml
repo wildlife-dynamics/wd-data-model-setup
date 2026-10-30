@@ -6,6 +6,16 @@ on:
       - "v[0-9]+.[0-9]+.[0-9]+"
       - "v[0-9]+.[0-9]+.[0-9]+rc[0-9]+"
 
+  # Needed because tag.yml pushes its tag with the default GITHUB_TOKEN, and
+  # GitHub deliberately does not start new workflow runs from events raised
+  # by that token -- otherwise a workflow could trigger itself forever. So
+  # the tag appears, the Release appears, and this never fires.
+  #
+  # Run it by hand from the Actions tab, choosing the tag as the ref. The
+  # alternative is a PAT in tag.yml, which trades a manual click for a
+  # long-lived credential in the repository.
+  workflow_dispatch:
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true

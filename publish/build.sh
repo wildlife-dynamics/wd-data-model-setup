@@ -7,7 +7,29 @@ set -euo pipefail
 RECIPES=("release/ecoscope-workflows-ext-wdmodel")
 
 project_root=$(pwd)/src/ecoscope-workflows-ext-wdmodel
-HATCH_VCS_VERSION=$(cd "$project_root" && hatch version)
+
+# The version is the git tag, read from git rather than from `hatch version`.
+#
+# The other workflow repos call `hatch version`, and can, because their
+# pyproject.toml sits at the repository root next to .git. Ours is two levels
+# down in src/, and setuptools-scm -- which hatch-vcs wraps -- looks for .git
+# in the project root only. It does not walk up, so it finds nothing, returns
+# the fallback, and the build quietly becomes 0.0.0 even on a tagged checkout.
+#
+# Asking git directly has no such subtlety, and says plainly where the version
+# comes from. The recipe passes it to the wheel build as
+# SETUPTOOLS_SCM_PRETEND_VERSION, so both halves agree.
+tag=$(git describe --tags --exact-match 2>/dev/null || true)   # on a release tag
+if [ -z "${tag}" ]; then
+  tag=$(git describe --tags --abbrev=0 2>/dev/null || true)    # local iteration
+fi
+if [ -n "${tag}" ]; then
+  HATCH_VCS_VERSION="${tag#v}"
+else
+  # No tags at all: a fresh clone before the first release. Fall back to
+  # hatch so a local build still produces something installable.
+  HATCH_VCS_VERSION=$(cd "$project_root" && hatch version)
+fi
 export HATCH_VCS_VERSION
 
 # An empty version reaches rattler-build as version: '' and fails deep inside
@@ -16,10 +38,10 @@ export HATCH_VCS_VERSION
 if [ -z "${HATCH_VCS_VERSION}" ]; then
   cat >&2 <<EOF
 
-hatch could not determine a version for the task package.
+could not determine a version for the task package.
 
-  The version comes from the git tag via hatch-vcs. A shallow clone has no
-  tags -- CI checks out with fetch-depth: 0 for exactly this reason.
+  The version is the git tag with its leading 'v' removed. A shallow clone
+  has no tags -- CI checks out with fetch-depth: 0 for exactly this reason.
 
 EOF
   exit 1
