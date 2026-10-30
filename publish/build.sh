@@ -18,11 +18,19 @@ if [ -z "${HATCH_VCS_VERSION}" ]; then
 
 hatch could not determine a version for the task package.
 
-  Check [project] version in src/ecoscope-workflows-ext-wdmodel/pyproject.toml.
-  If it declares dynamic = ["version"], it also needs a [tool.hatch.version]
-  block -- and hatch-vcs needs a git repository with at least one tag.
+  The version comes from the git tag via hatch-vcs. A shallow clone has no
+  tags -- CI checks out with fetch-depth: 0 for exactly this reason.
 
 EOF
+  exit 1
+fi
+
+# 0.0.0 is the fallback hatch-vcs uses when there is no tag at all. Fine
+# locally; fatal in CI, because the channel already holds a 0.0.0 from the
+# first publish and rejects the re-upload with an error that says nothing
+# about tags.
+if [ "${HATCH_VCS_VERSION}" = "0.0.0" ] && [ -n "${CI:-}" ]; then
+  echo "refusing to build 0.0.0 in CI -- no tag was found on this checkout" >&2
   exit 1
 fi
 echo "HATCH_VCS_VERSION=${HATCH_VCS_VERSION}"

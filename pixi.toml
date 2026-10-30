@@ -73,8 +73,7 @@ cmd = 'python -m pytest src/ecoscope-workflows-ext-wdmodel/tests -q'
 [tasks.build-release]
 cmd = './publish/build.sh'
 
-# Uploads what build-release produced to the shared remote channel. Needed
-# before anyone else can install a compiled template -- see the note at the
-# top of publish/push.sh, which explains the /tmp path baked into pixi.lock.
-[tasks.publish-release]
-cmd = './publish/push.sh'
+# No publish task. Uploading is done by .github/workflows/publish.yml on a
+# version tag, authenticated with an OIDC token that only exists inside the
+# Actions run -- publish/push.sh cannot work from a laptop, and a pixi task
+# implying otherwise would just produce a confusing auth failure.
