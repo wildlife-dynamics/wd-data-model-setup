@@ -1,0 +1,30 @@
+context:
+  name: ecoscope-workflows-ext-wdmodel
+  version: ${{ env.get("HATCH_VCS_VERSION", default="0.0.1") }}
+
+package:
+  name: ${{ name }}
+  version: ${{ version }}
+
+source:
+  path: ../../..
+
+build:
+  noarch: python
+  script: SETUPTOOLS_SCM_PRETEND_VERSION=${{ version }} python -m pip install src/ecoscope-workflows-ext-wdmodel -vv --no-deps
+  number: 0
+
+requirements:
+  host: [python, hatchling, pip]
+  run:
+    - python
+    - wt-registry
+    - ecoscope-platform
+    - pandas
+
+about:
+  license: BSD-3-Clause
+
+extra:
+  recipe-maintainers:
+    - Rodney
