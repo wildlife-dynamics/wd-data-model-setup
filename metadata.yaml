@@ -1,21 +1,32 @@
-name:  # Title Case, e.g. "My Ecoscope Workflow Template"
+name: WD Data Model Setup
 
-# at least one author is required
 author:
-  - name: ""
-    organization: ""
-    email: ""
+  - name: "Rodney Omukuti"
+    organization: "Wildlife Dynamics"
+    email: "rodney@wildlifedynamics.com"
 
-description: # A short description
+description: >-
+  Sets up the Wildlife Dynamics standard conservancy data model on any
+  EarthRanger instance. Choose which of the four categories an organisation
+  needs -- Animal Health, Field Monitoring, Human-Wildlife Conflict, Rangeland
+  Monitoring -- and the workflow creates the categories, the choice lists, the
+  event types and their v2 schemas, in that order. The model travels inside the
+  workflow, so no reference instance has to be reachable and two runs months
+  apart produce the same thing.
 
-# todo: add example
-theory: "" # optional
+theory: >-
+  Every conservancy recording the same events the same way is what makes one
+  site's data comparable with another's. The cost of getting there by hand is
+  27 event types per organisation, each needing a form built field by field,
+  and every one of them a chance to mistype an enum value or point a field at
+  the wrong choice list. A mistyped $ref does not error: the form renders with
+  an empty dropdown and nobody finds out until a ranger is standing over a
+  carcass. This workflow makes a new organisation a configuration change
+  instead.
 
-# todo: add example
-output_comment: "" # optional
+output_comment: >-
+  The table lists one row per intended change, in the order the writes would
+  happen, followed by any warnings. Nothing is written by this version --
+  it reports what setting up would do.
 
-# optional
-# example
-# citation: 
-#   - Wu, Y. et al. (2025). "Monitoring elephant spatial patterns with Ecoscope workflows."
-citation: [] 
+citation: []

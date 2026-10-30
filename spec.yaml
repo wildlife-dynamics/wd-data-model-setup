@@ -1,12 +1,190 @@
-id:  # Unique workflow identifier (kebab-case)
-requirements: # Package dependencies with channels
-  - name: ecoscope-workflows-core
-    version: "0.18.0"
+id: wd_data_model_setup
+
+requirements:
+  - name: ecoscope-platform
+    version: ">=2.21.0, <2.22.0"
     channel: https://repo.prefix.dev/ecoscope-workflows/
 
-# List of tasks in execution order
+  - name: ecoscope-workflows-ext-wdmodel
+    version: "*"
+    channel: file:///tmp/ecoscope-workflows-custom/release/artifacts/
+
+  - name: pydeck
+    version: 0.9.2
+    channel: conda-forge
+
+rjsf-overrides:
+  properties:
+    # The stock copy ("Select one of your configured data sources") assumes you
+    # know a data source is a saved EarthRanger connection. Say which instance
+    # and say that it is the one being written to, since this is the only field
+    # that decides that.
+    er_target.properties.data_source.title: "EarthRanger instance to set up"
+    er_target.properties.data_source.description: >-
+      The instance being written to, chosen from the connections saved under
+      Data Sources. The same credentials read and write -- there is no second
+      login.
+    # The second connection is asked for on every run, including standard
+    # ones that never read it. That is the app, not this spec: Ecoscope
+    # Desktop collects connections in their own wizard step, derived from the
+    # spec's connection TASKS, and nothing in the parameter schema reaches
+    # that step. Four attempts confirmed it:
+    #
+    #  1. er_source.required: []        -- asterisk stayed. It comes from the
+    #                                      shared $defs/EarthRangerConnection,
+    #                                      where `name` is required.
+    #  2. default: {"name": ""}         -- satisfies that `required`, and the
+    #                                      form still refused to submit.
+    #  3. an RJSF `dependencies` toggle -- hid the field and broke three
+    #                                      other things. additionalProperties
+    #                                      had to be opened for the branch's
+    #                                      data_source, which made the app
+    #                                      render a free-form key editor and
+    #                                      fail its own uiSchema order check;
+    #                                      and the resolver below died with
+    #                                      "Ambiguous or unavailable
+    #                                      dependency", which settles that
+    #                                      question: depends_on is resolved
+    #                                      against the SCHEMA. Anything that
+    #                                      moves data_source takes the event
+    #                                      type picker with it.
+    #  4. a separate copy template      -- worked, but made the operator pick
+    #                                      a template before they could see
+    #                                      what either one did.
+    #
+    # So the connection stays, and `mode` makes it inert: on a standard run
+    # the task never touches copy_from. Cosmetic there, load-bearing in copy
+    # mode. That is a property of the task, not of the form -- which is why
+    # it is a dropdown the task reads, and not an inference from whether the
+    # copy fields happen to be filled.
+    er_source.properties.data_source.title: "Instance to copy from"
+    er_source.properties.data_source.description: >-
+      Only used when the mode below is set to copying, and only ever read,
+      never written to. On a standard-model run nothing reads it, so point it
+      at any instance - the same one you are setting up is the simplest
+      answer. The app asks for it either way.
+
+    "Set up.properties.setup.properties.mode.title": "What this run should do"
+    "Set up.properties.setup.properties.copy_event_types.title": "Event types to copy"
+    "Set up.properties.setup.properties.copy_into_category.title": "Put them all in this category (blank = keep the source's)"
+    "Set up.properties.setup.properties.collision_prefix.title": "Prefix for clashing choice lists (e.g. fm_)"
+    # Populates the list from the source connection, and refreshes when it
+    # changes. The resolver supports patrol_type, event_type and
+    # spatial_feature_group - event CATEGORIES are not supported, which is
+    # why the copy path selects types and derives their categories.
+    #
+    # depends_on is resolved against the SCHEMA, so er_source must stay a
+    # top-level task with data_source directly under its properties.
+    "Set up.properties.setup.properties.copy_event_types.ecoscope:transform":
+      - transformer: EarthRangerEnumResolver
+        transformer_kws:
+          type: event_type
+          depends_on: properties.er_source.properties.data_source.properties.name
+
+    "Set up.properties.setup.title": " "
+    # A multi-select array takes a large subhead-style label keyed only on
+    # uniqueItems, with no uiSchema escape hatch -- a single space is how you
+    # suppress it. An empty string would fall back to the raw property name.
+    "Set up.properties.setup.properties.categories.title": " "
+    "Set up.properties.setup.properties.dry_run.title": "Dry run - create nothing"
+    "Set up.properties.setup.properties.dry_run.default": true
+    "Set up.properties.setup.properties.species_list.title": "Use a species list already on this instance"
+    "Set up.properties.setup.properties.species_csv.title": "Or load species from a CSV file"
+    "Set up.properties.setup.properties.activate.title": "Activate the event types immediately"
+    "Set up.properties.setup.properties.activate.default": false
+    "Set up.properties.setup.properties.prefix.title": "Event type prefix (blank for a real build)"
+    "Set up.properties.setup.properties.replace_schema.title": "Replace schemas that already exist"
+
 workflow:
-  - name:  # Display name used for the configuration form UI
-    description:  # Description used for the configuration form
-    id:  # Unique task identifier (snake_case)
-    task:  # Function name from task library
+  # ---------------------------------------------------------------- config ---
+  - name: Workflow Details
+    id: workflow_details
+    task: set_workflow_details
+
+  - name: Group Data
+    id: groupers
+    # Bound empty: nothing here is grouped, so a grouper field on the form is a
+    # question the user cannot usefully answer.
+    task: set_groupers
+    partial:
+      groupers: []
+
+  # ------------------------------------------------------------ connections ---
+  # Both at the top level rather than inside a task-group card. The resolver's
+  # depends_on walks the schema, and a top-level task is what gives it the
+  # stable path.
+  - name: Instance to set up
+    id: er_target
+    task: set_er_connection
+
+  - name: Instance to copy from (ignored unless the mode says to copy)
+    id: er_source
+    task: set_er_connection
+
+  # --------------------------------------------------------------- set up ---
+  - title: Set up
+    type: task-group
+    description: >-
+      Start with "What this run should do". It decides which of the fields
+      below are read - the standard-model fields, or the copy fields - and
+      the others are ignored outright. Leave Dry run on
+      first and read the table: it lists every intended write without making
+      any, and flags any choice list that already exists on the instance with
+      different options.
+    tasks:
+      # Dotted, not bare. A bare name has to be in the core task registry;
+      # anything from an extension package is referenced by its importable
+      # path, which is what the compiler means by "must be a dotted string".
+      #
+      # One task, not a plan task and an apply task. Dry run IS the plan, and
+      # two tasks would put every field on the form twice.
+      - name: Set up the data model
+        id: setup
+        task: ecoscope_workflows_ext_wdmodel.tasks.setup.apply_data_model
+        partial:
+          client: ${{ workflow.er_target.return }}
+          copy_from: ${{ workflow.er_source.return }}
+
+  # --------------------------------------------------------------- results ---
+  # draw_* tasks return HTML; the widget tasks want a persisted file URL.
+  # Passing a DataFrame straight to a widget fails with "Input is not a valid
+  # path", so a table goes draw_table -> persist_text -> create_table_widget.
+  - name: Results Table
+    id: results_table
+    task: draw_table
+    partial:
+      dataframe: ${{ workflow.setup.return }}
+      widget_id: "Data model setup"
+      columns: null
+      table_config: null
+
+  - name: Persist Results Table
+    id: results_table_html
+    task: persist_text
+    partial:
+      text: ${{ workflow.results_table.return }}
+      root_path: ${{ env.ECOSCOPE_WORKFLOWS_RESULTS }}
+      filename: setup.html
+
+  - name: Results Widget
+    id: results_widget
+    task: create_table_widget_single_view
+    partial:
+      title: "Data model setup"
+      data: ${{ workflow.results_table_html.return }}
+
+  - name: Dashboard
+    id: dashboard
+    task: gather_dashboard
+    partial:
+      details: ${{ workflow.workflow_details.return }}
+      widgets:
+        - ${{ workflow.results_widget.return }}
+      groupers: ${{ workflow.groupers.return }}
+      # Bound null so it leaves the form. gather_dashboard declares
+      # `time_range: TimeRange | SkipJsonSchema[None] = None`, and
+      # SkipJsonSchema strips the null branch from the schema -- so an unbound
+      # time_range renders as a full Since/Until/TimezoneInfo card even though
+      # the task does not need one. There is nothing time-filtered here: the
+      # workflow reads an instance's current configuration, which has no dates.
+      time_range: null
