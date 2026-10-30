@@ -26,11 +26,11 @@ build-backend = "hatchling.build"
 [tool.hatch.version]
 source = "vcs"
 fallback-version = "0.0.0"
-# .git is two levels up -- setuptools-scm looks in the project root and does
-# not walk up on its own. Without this, `hatch version` silently returns the
-# fallback on a perfectly good tagged checkout. publish/build.sh reads the
-# tag from git for the same reason and does not rely on this.
-raw-options = { search_parent_directories = true }
+# No raw-options here. .git is two levels up and setuptools-scm will not walk
+# up to find it, so `hatch version` returns the fallback locally -- that is
+# fine and deliberate: publish/build.sh reads the tag from git itself, and
+# the recipe passes it in as SETUPTOOLS_SCM_PRETEND_VERSION. Keeping the
+# config plain avoids a second thing that can fail inside the build sandbox.
 
 [tool.hatch.build.targets.wheel]
 packages = ["ecoscope_workflows_ext_wdmodel"]

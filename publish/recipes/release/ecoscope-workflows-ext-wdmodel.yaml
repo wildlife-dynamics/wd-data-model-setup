@@ -15,7 +15,12 @@ build:
   number: 0
 
 requirements:
-  host: [python, hatchling, pip]
+  # hatch-vcs is load-bearing, not optional. pyproject declares
+  # dynamic = ["version"] with a vcs source, so hatchling cannot produce
+  # metadata without it. pip would try to fetch it into an isolated build
+  # env, which fails in the sandbox and surfaces only as "metadata
+  # generation failed" at the bottom of a long pip traceback.
+  host: [python, hatchling, hatch-vcs, pip]
   run:
     - python
     - wt-registry
