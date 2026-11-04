@@ -10,6 +10,7 @@ already built for the standard model rather than growing a second code path.
 from __future__ import annotations
 
 import copy
+import difflib
 from dataclasses import dataclass, field
 from typing import Any, Iterable
 
@@ -66,32 +67,20 @@ class Source:
         if selected is None:
             return copy.deepcopy(self.event_types)
         wanted = set(selected)
-        unknown = wanted - set(self.category_values())
+        have = self.category_values()
+        unknown = wanted - set(have)
         if unknown:
+            # Typed by hand on a copy run, so spelling is the likely fault.
+            hints = []
+            for v in sorted(unknown):
+                close = difflib.get_close_matches(v, sorted(have), n=3, cutoff=0.6)
+                hints.append(f"{v!r}" + (f" (did you mean {close}?)" if close else ""))
             raise ValueError(
-                f"not categories in {self.origin}: {sorted(unknown)}. "
-                f"Available: {self.category_values()}"
+                f"not categories in {self.origin}: "
+                + "; ".join(hints)
+                + f". Available: {have}"
             )
         return copy.deepcopy([t for t in self.event_types if t["category"] in wanted])
-
-    def types_named(self, values: Iterable[str]) -> list[dict[str, Any]]:
-        """Specific event types, by value.
-
-        The copy path selects types rather than categories, because the form
-        can populate a list of an instance's event types from the connection
-        and cannot do the same for categories. Each type carries its own
-        category, so the categories follow.
-        """
-        wanted = list(values)
-        have = {t["value"] for t in self.event_types}
-        missing = [v for v in wanted if v not in have]
-        if missing:
-            raise ValueError(
-                f"not event types on the source: {sorted(missing)}. "
-                "They may be v1 only -- a v1 form keeps its options inline "
-                "rather than in registered choice lists and cannot be copied."
-            )
-        return copy.deepcopy([t for t in self.event_types if t["value"] in set(wanted)])
 
     def categories_of(self, types: Iterable[dict[str, Any]]) -> list[str]:
         """The categories the given types belong to, in model order."""
@@ -226,9 +215,33 @@ def fetch_schemas(read_one, types: list[dict]) -> list[str]:
             )
             t["schema"] = {}
             continue
-        detail = (
-            read_one(f"activity/eventtypes/{tid}/", {"include_schema": "true"}) or {}
-        )
+        # Two spellings, because instances disagree about the trailing
+        # slash and a miss is a hard 404, not an empty body. And a read that
+        # raises is caught here: one unreadable type must not take down a
+        # copy of twenty-six good ones -- which is what this function has
+        # claimed to do since it was written, while an exception walked
+        # straight out of it.
+        detail: dict[str, Any] = {}
+        failures: list[str] = []
+        for path in (
+            f"activity/eventtypes/{tid}/",
+            f"activity/eventtypes/{tid}",
+        ):
+            try:
+                detail = read_one(path, {"include_schema": "true"}) or {}
+            except Exception as exc:  # noqa: BLE001 - report it, do not abort
+                failures.append(f"{path} -> {type(exc).__name__}")
+                continue
+            if detail:
+                break
+        if not detail and failures:
+            warnings.append(
+                f"event type '{t.get('value')}' could not be read from the "
+                f"source and was skipped: {'; '.join(failures)}. The id used "
+                f"was {tid!r}, taken from the event type list."
+            )
+            t["schema"] = {}
+            continue
         schema = detail.get("schema")
         if isinstance(schema, str):
             import json as _json
@@ -512,3 +525,73 @@ def collisions(
         if mine and mine != theirs:
             out[f] = (mine - theirs, theirs - mine)
     return out
+
+
+def apply_species_choice(
+    src: "Source",
+    chosen: list[dict[str, Any]],
+    mode: str,
+    csv_rows: list[dict[str, Any]],
+) -> list[str]:
+    """Point the copied forms' species field at the chosen list.
+
+    Copied forms reference whatever the SOURCE called its species list, so
+    switching them to the standard list is a rename and a $ref rewrite, not
+    just a row swap -- `rename_lists` moves both halves together, which is
+    the half that was missed in the bug that left MMNR's Left Tusk section
+    unreachable.
+
+    Only the general species list moves. Every list this picks, and every
+    "species" list it declines, comes back as a row, because the match is a
+    heuristic over names the source chose and nobody here controls.
+    """
+    if mode == "source":
+        return []
+
+    referenced = src.lists_for(chosen)
+    general = sorted(model.general_species_lists(referenced))
+    declined = sorted(
+        n for n in referenced if "species" in str(n).lower() and n not in general
+    )
+
+    notes: list[str] = []
+    for n in declined:
+        notes.append(
+            f"choice list {n!r} looks species-related but was treated as "
+            "purpose-specific and left pointing at the source's version."
+        )
+
+    if not general:
+        notes.append(
+            "the species list was set to "
+            f"{mode!r} but none of the copied forms reference a general "
+            "species list, so nothing was repointed. Lists seen: "
+            + (", ".join(sorted(map(str, referenced))[:20]) or "none")
+        )
+        return notes
+
+    rows = csv_rows if mode == "csv" else model.choices_for([model.SPECIES_LIST])
+    if not rows:
+        notes.append(
+            f"the species list was set to {mode!r} but no rows were "
+            "available to write, so the source's list was kept."
+        )
+        return notes
+
+    moved = src.rename_lists({n: model.SPECIES_LIST for n in general})
+    src.choices = [c for c in src.choices if c["field"] != model.SPECIES_LIST]
+    src.choices += [dict(r, field=model.SPECIES_LIST) for r in rows]
+
+    where = "the WD standard list" if mode == "standard" else "the supplied CSV"
+    notes.append(
+        f"species repointed to {where}: {', '.join(map(str, general))} -> "
+        f"{model.SPECIES_LIST} ({len(rows)} rows, {moved} $refs rewritten)."
+    )
+    if len(general) > 1:
+        notes.append(
+            f"{len(general)} separate species lists on the source were merged "
+            f"onto one: {', '.join(map(str, general))}. Any form rule keyed on "
+            "a value only one of them carried will not fire unless that value "
+            "is in the new list."
+        )
+    return notes

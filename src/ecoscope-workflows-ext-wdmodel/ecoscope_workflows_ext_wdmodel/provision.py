@@ -19,9 +19,12 @@ ranger opens the form in the field.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Iterable
+from typing import TYPE_CHECKING, Any, Iterable
 
 from . import model
+
+if TYPE_CHECKING:
+    from .source import Source
 
 #: Creation order. Also the sort order of a plan, so reading it top to bottom
 #: is the order the writes happen in.
