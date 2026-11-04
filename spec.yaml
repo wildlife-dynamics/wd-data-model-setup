@@ -51,8 +51,7 @@ rjsf-overrides:
     er_target.properties.data_source.title: "EarthRanger instance to set up"
     er_target.properties.data_source.description: >-
       The instance being written to, chosen from the connections saved under
-      Data Sources. The same credentials read and write -- there is no second
-      login.
+      Data Sources.
 
     # The source connection is a field of the CopyFromInstance branch, so a
     # standard run does not render it at all. Five earlier attempts did not
@@ -131,8 +130,7 @@ workflow:
     type: task-group
     description: >-
       Start with "What this run should do". It decides which of the fields
-      below are read - the standard-model fields, or the copy fields - and
-      the others are ignored outright. Leave Dry run on
+      below are read - the standard-model fields, or the copy fields. Leave Dry run on
       first and read the table: it lists every intended write without making
       any, and flags any choice list that already exists on the instance with
       different options.
