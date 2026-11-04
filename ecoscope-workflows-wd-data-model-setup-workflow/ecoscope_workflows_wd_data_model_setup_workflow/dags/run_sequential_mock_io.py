@@ -64,23 +64,13 @@ def main(params: dict[str, Any], validate_params_schema: bool = True):
         .call()
     )
 
-    er_source = (
-        task(set_er_connection)
-        .validate()
-        .set_task_instance_id("er_source")
-        .handle_errors()
-        .with_tracing()
-        .partial(**(params.get("er_source") or {}))
-        .call()
-    )
-
     setup = (
         task(apply_data_model)
         .validate()
         .set_task_instance_id("setup")
         .handle_errors()
         .with_tracing()
-        .partial(client=er_target, copy_from=er_source, **(params.get("setup") or {}))
+        .partial(client=er_target, **(params.get("setup") or {}))
         .call()
     )
 
