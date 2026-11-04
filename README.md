@@ -124,64 +124,14 @@ Pick the source under **Instance to copy from**, then type the source's
 category values into **Categories to copy** — one per row. Every v2 event
 type in them comes across, with its choice lists. Categories rather than
 individual types because a whole model is two or three values rather than
-twenty-seven, and there is no dropdown to pick from — see *Why there is no
-dropdown* below.
-
-### The source instance
-
-**Instance to copy from** is a field of the copy branch itself, so a standard
-run does not render it at all.
-
-Getting there took five attempts. A second `set_er_connection` task puts the
-picker in Desktop's Data Sources step, which demands a selection on every run;
-`required: []` and a `{"name": ""}` default both left it mandatory; an RJSF
-`dependencies` toggle hid it and broke other things; and as a top-level
-parameter of the Set up task it rendered correctly but showed on every run,
-copy or not.
-
-The generated `metadata.get_data_connection_property_names()` walks two
-levels of `params.json` and so cannot see this one, but that is not what
-registers it. Desktop's form layer runs its own scan that recurses through
-`$ref`, `properties`, `items` and `anyOf`/`oneOf`, and that one finds it.
-
-### Why there is no dropdown
-
-**Categories to copy** is a list you type values into, because Ecoscope
-Desktop cannot run a source-options lookup against a connection nested inside
-a Union branch.
-
-Three experiments, one variable each:
-
-| `depends_on` | form builds | list loads |
-|---|---|---|
-| `$defs.CopyFromInstance…source.properties.name` | yes | **no** |
-| `properties.setup…what.properties.source…name` | **no** | — |
-| `properties.er_target…data_source.properties.name` | yes | yes |
-
-Row 1 resolves — the form builds, so the alias is right — and the lookup
-still fails. Row 2 does not resolve at all: a node inside an `anyOf` answers
-only to its `$defs`-rooted alias, not a `properties`-rooted one. Row 3 is the
-same resolver on the same field inside the same branch, reading a *top-level*
-connection, and it works.
-
-So a resolver **field** inside a Union branch is fine; a **connection**
-inside one cannot feed a lookup. The hidden picker and the dropdown are
-mutually exclusive, and the hidden picker won — copying is the rarer path and
-is always deliberate, while every run otherwise pays for a connection field
-it does not use.
-
-Typing categories rather than event types is the other half of that. The
-original reason for selecting types was that the form could populate a list
-of an instance's *types* from a connection and could not do the same for
-categories. With no dropdown either way, that reason is gone, and a category
-is two or three values instead of twenty-seven.
+twenty-seven, and there is no dropdown to pick from.
 
 Type the **values**, not display names — `field_monitoring`, not *Field
 Monitoring*. A dry run checks each one against the source and names the near
 misses for anything it cannot find, which is why you run one first.
 
 If a category holds a type you do not want, copy the category and deactivate
-that type afterwards. There is no way to take a subset.
+that type afterwards.
 
 ### Where the copied types land
 
@@ -190,11 +140,7 @@ is created on the target if it isn't there — `rhino_sighting` from Rhino
 Monitoring arrives in a Rhino Monitoring category.
 
 **Put them all in this category** overrides that and files everything under
-one category instead. This is the Westgate → MMNR move: Westgate's standard-model
-types sit in `field_monitoring_2`, a name it carries only because of a
-permissions collision in its own history, and they were written into MMNR as
-plain `field_monitoring`. Inheriting would have carried that accident into
-every instance built from it.
+one category instead.
 
 Leave it blank to inherit; set it to re-file.
 
@@ -240,16 +186,12 @@ A copied form points at whatever the source instance called its species list.
 | `standard` | Repoints the copied forms at the WD standard 66-entry list. |
 | `csv` | Repoints them at a list built from your own CSV — same format as the standard-model one below. |
 
-Repointing moves **both halves**: the rows are renamed to `species` and every
-`$ref` in every copied schema moves with them. Renaming one without the other
-is the bug that left MMNR's Left Tusk section unreachable.
-
 **Only the general species list moves.** A source may well have
 `livestock_species`, `species_of_vulture_at_carcass` and
 `alien_plant_species` alongside it, and merging those onto one list would put
 elephants in a livestock dropdown. Lists are matched on the name — the source
 chose those names, not us — so the match is a heuristic and acts like one:
-every list it repoints and every "species" list it declines comes back as a
+every list it repoints, and every "species" list it declines comes back as a
 row in the results. Read them on the dry run.
 
 Two more things it will tell you rather than do quietly:
@@ -265,7 +207,7 @@ with **Prefix for clashing choice lists** below for collisions.
 
 ### Read the collision warnings
 
-This is the one that bites. A choice list already on the target is **skipped,
+A choice list already on the target is **skipped,
 not overwritten** — overwriting somebody else's vocabulary would be worse. But
 it means the copied form binds to the *target's* version of that list. If the
 two have different options, a form rule keyed on a value the target lacks
@@ -402,7 +344,7 @@ permanently broken. An event type that has taken a single record cannot be
 removed. This is why Dry run is on by default.
 
 **Event type values are unique per instance.** An unprefixed rehearsal takes
-the name the real build needs later and you cannot have it back. Use
+the name the real build needs later, and you cannot have it back. Use
 `trial_` or similar for anything you intend to throw away — and note the
 prefix applies to event types only, not to choice lists, so a prefixed
 rehearsal still reports the same collision warnings a real run would.
