@@ -26,7 +26,7 @@ def plan(**kw):
 
 
 def test_four_categories():
-    assert ALL == ["animal_health", "field_monitoring", "hwc", "rangeland_monitoring"]
+    assert ALL == ["animal_health", "field_monitoring", "rangeland_monitoring"]
 
 
 def test_the_form_choices_match_the_model():
@@ -389,7 +389,7 @@ def test_a_same_named_list_with_different_options_is_flagged():
 
 def test_copied_types_inherit_their_source_category_by_default():
     src, _ = source.export_from(_fake_instance(), ["rhino_mgmt"], "src")
-    chosen = src.types_named(["rhino_sighting"])
+    chosen = src.types_in(["rhino_mgmt"])
     assert src.categories_of(chosen) == ["rhino_mgmt"]
 
 
@@ -400,7 +400,7 @@ def test_recategorise_reproduces_the_westgate_to_mmnr_move():
     it would have carried the accident into every instance built from it.
     """
     src, _ = source.export_from(_fake_instance(), ["rhino_mgmt"], "src")
-    chosen = src.types_named(["rhino_sighting"])
+    chosen = src.types_in(["rhino_mgmt"])
     src.event_types = chosen
     src.recategorise(chosen, "field_monitoring")
 
@@ -423,7 +423,7 @@ def test_recategorise_reproduces_the_westgate_to_mmnr_move():
 
 def test_recategorise_into_a_category_the_target_already_has():
     src, _ = source.export_from(_fake_instance(), ["rhino_mgmt"], "src")
-    chosen = src.types_named(["rhino_sighting"])
+    chosen = src.types_in(["rhino_mgmt"])
     src.event_types = chosen
     src.recategorise(chosen, "field_monitoring")
     actions, _ = provision.plan(
@@ -539,3 +539,76 @@ def test_apply_stops_at_the_first_failure():
     assert results[-1].outcome == "failed"
     assert len(results) < len(actions)
     assert "500 duplicate key" in results[-1].detail
+
+
+def test_a_mistyped_category_names_the_near_miss():
+    """Category values are typed by hand on a copy run, so the commonest
+    failure is a typo. Refusing without saying what was close makes the
+    operator go and read the source's admin pages."""
+    src, _ = source.export_from(_fake_instance(), ["rhino_mgmt"], "src")
+    with pytest.raises(ValueError) as e:
+        src.types_in(["rhino_mgtm"])
+    assert "rhino_mgmt" in str(e.value)
+    assert "did you mean" in str(e.value)
+
+
+def test_an_unrecognisable_category_still_lists_what_there_is():
+    src, _ = source.export_from(_fake_instance(), ["rhino_mgmt"], "src")
+    with pytest.raises(ValueError, match="Available"):
+        src.types_in(["zzzzzzzz"])
+
+
+# ------------------------------------------- reading schemas from a source ---
+
+
+def _typ(tid="t1", value="wildlife_sighting"):
+    return {"id": tid, "value": value, "category": "field_monitoring"}
+
+
+def test_one_unreadable_type_does_not_abort_the_others():
+    """A 404 on one detail route used to walk straight out of fetch_schemas
+    and kill the run, while its docstring promised a warning. Twenty-six
+    good types should not be lost to one bad one."""
+    good = {"json": {"properties": {}}}
+
+    def read_one(path, params=None):
+        if "bad" in path:
+            raise RuntimeError("404")
+        return {"schema": good}
+
+    types = [_typ("bad", "broken"), _typ("ok", "fine")]
+    warnings = source.fetch_schemas(read_one, types)
+
+    assert types[1]["schema"] == good, "the readable type should survive"
+    assert types[0]["schema"] == {}
+    assert any("broken" in w and "RuntimeError" in w for w in warnings)
+
+
+def test_the_warning_names_the_id_and_the_url_it_tried():
+    def read_one(path, params=None):
+        raise RuntimeError("nope")
+
+    types = [_typ("abc-123", "wildlife_sighting")]
+    (warning,) = source.fetch_schemas(read_one, types)
+
+    assert "abc-123" in warning
+    assert "activity/eventtypes/abc-123" in warning
+
+
+def test_a_source_that_refuses_the_trailing_slash_still_works():
+    """Instances disagree about it, and a miss is a hard 404 rather than an
+    empty body, so both spellings are tried."""
+    seen = []
+
+    def read_one(path, params=None):
+        seen.append(path)
+        if path.endswith("/"):
+            raise RuntimeError("404")
+        return {"schema": {"json": {"properties": {}}}}
+
+    types = [_typ()]
+    warnings = source.fetch_schemas(read_one, types)
+
+    assert warnings == []
+    assert types[0]["schema"] == {"json": {"properties": {}}}
+    assert len(seen) == 2

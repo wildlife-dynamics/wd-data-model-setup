@@ -1,6 +1,6 @@
 """The WD standard data model, as shipped inside this package.
 
-One file, 27 event types across four categories, every choice list they
+One file, 27 event types across three categories, every choice list they
 reference. It travels in the wheel rather than being read from a reference
 instance at run time, so a brand new organisation can be set up with nothing
 else reachable and two runs a month apart produce the same thing.
@@ -37,10 +37,19 @@ SPECIES_LIST = "species"
 #: no ecoscope import and can be unit-tested; `test_the_form_choices_match_the
 #: _model` pins the two together, because an option this forgets is one the
 #: form silently never offers.
+#: Three, not four. Human-Wildlife Conflict was a fourth category until
+#: 4 Nov 2026; India Taylor-Smith's structure is Animal Health, Field
+#: Monitoring and Rangeland Monitoring, with Rangeland optional because not
+#: every conservancy runs a rangeland programme. The five HWC types -- crop
+#: damage, infrastructure damage, livestock predation, human death, human
+#: injury -- now sit in Field Monitoring, which is where Naibunga Lower
+#: already had them.
+#:
+#: Rangeland being "optional" needs no model support: the form's category
+#: picker already lets a site take any subset.
 Category = Literal[
     "animal_health",
     "field_monitoring",
-    "hwc",
     "rangeland_monitoring",
 ]
 
@@ -57,7 +66,7 @@ def load() -> dict[str, Any]:
 
 
 def categories() -> list[dict[str, Any]]:
-    """The four categories, in display order."""
+    """The three categories, in display order."""
     return sorted(load()["categories"], key=lambda c: c.get("ordernum", 0))
 
 
@@ -123,6 +132,48 @@ def lists_for(types: Iterable[dict[str, Any]]) -> set[str]:
     out: set[str] = set()
     for t in types:
         out |= refs_in(t["schema"])
+    return out
+
+
+#: Fragments that mark a species list as purpose-specific rather than the
+#: general one. The standard model has eight lists with "species" in the name
+#: and only three of them -- species, species_2, species_3 -- are the general
+#: one; the rest are the vulture species seen at a carcass, the livestock
+#: species in a household survey, and so on. Merging those onto the general
+#: list would put elephants in a livestock dropdown.
+PURPOSE_SPECIFIC = (
+    "vulture",
+    "livestock",
+    "alien_plant",
+    "invasive",
+    "hwc",
+    "predator",
+    "plant",
+    "tree",
+    "crop",
+)
+
+
+def general_species_lists(names: Iterable[str]) -> set[str]:
+    """Which of these choice lists are the GENERAL species list.
+
+    Source instances do not agree on the name -- `species`, `species_2`,
+    `wildlifesightingrep_species` are all the same thing wearing different
+    labels -- so this matches on the suffix and then subtracts the
+    purpose-specific ones by name fragment.
+
+    It is a heuristic and it is allowed to be, because nothing acts on it
+    silently: every list it picks and every "species" list it declines is
+    reported as a row, and Dry run is on by default.
+    """
+    out: set[str] = set()
+    for n in names:
+        low = str(n).lower()
+        if not low.endswith("species") and not re.fullmatch(r"species_\d+", low):
+            continue
+        if any(w in low for w in PURPOSE_SPECIFIC):
+            continue
+        out.add(n)
     return out
 
 

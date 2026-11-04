@@ -7,9 +7,9 @@ author:
 
 description: >-
   Sets up the Wildlife Dynamics standard conservancy data model on any
-  EarthRanger instance. Choose which of the four categories an organisation
-  needs -- Animal Health, Field Monitoring, Human-Wildlife Conflict, Rangeland
-  Monitoring -- and the workflow creates the categories, the choice lists, the
+  EarthRanger instance. Choose which of the three categories an organisation
+  needs -- Animal Health, Field Monitoring, Rangeland Monitoring -- and the
+  workflow creates the categories, the choice lists, the
   event types and their v2 schemas, in that order. The model travels inside the
   workflow, so no reference instance has to be reachable and two runs months
   apart produce the same thing.

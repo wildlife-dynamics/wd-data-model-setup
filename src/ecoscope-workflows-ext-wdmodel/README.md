@@ -5,7 +5,7 @@ onto an EarthRanger instance.
 
 The model itself ships inside this package, at
 `ecoscope_workflows_ext_wdmodel/data/wd-standard-model-v2.json`: 27 event types
-across four categories, with every choice list they reference. It travels in the
+across three categories, with every choice list they reference. It travels in the
 wheel rather than being read from a reference instance at run time, so a brand
 new organisation can be set up with nothing else reachable, and two runs months
 apart produce the same thing.
