@@ -15,15 +15,9 @@
    "flag": "user"
   },
   {
-   "value": "hwc",
-   "display": "Human-Wildlife Conflict",
-   "ordernum": 3,
-   "flag": "user"
-  },
-  {
    "value": "rangeland_monitoring",
    "display": "Rangeland Monitoring",
-   "ordernum": 4,
+   "ordernum": 3,
    "flag": "user"
   }
  ],
@@ -437,7 +431,7 @@
   {
    "field": "species",
    "value": "vulture_r_ppels",
-   "display": "Vulture - R\u00fcppels / Tai",
+   "display": "Vulture - Rüppels / Tai",
    "ordernum": 530,
    "is_active": true
   },
@@ -724,7 +718,7 @@
   {
    "field": "species_of_vulture_at_carcass",
    "value": "ruppells_vulture",
-   "display": "Ruppell\u2019s vulture",
+   "display": "Ruppell’s vulture",
    "ordernum": 40,
    "is_active": true
   },
@@ -1606,14 +1600,14 @@
   {
    "field": "extent_of_damage",
    "value": "1_5_acres",
-   "display": "1\u20135 acres",
+   "display": "1–5 acres",
    "ordernum": 20,
    "is_active": true
   },
   {
    "field": "extent_of_damage",
    "value": "5_10_acres",
-   "display": "5\u201310 acres",
+   "display": "5–10 acres",
    "ordernum": 30,
    "is_active": true
   },
@@ -2971,7 +2965,7 @@
   {
    "field": "species_3",
    "value": "vulture_r_ppels",
-   "display": "Vulture - R\u00fcppels / Tai",
+   "display": "Vulture - Rüppels / Tai",
    "ordernum": 530,
    "is_active": true
   },
@@ -11623,7 +11617,7 @@
   {
    "value": "crop_damage",
    "display": "Crop Damage",
-   "category": "hwc",
+   "category": "field_monitoring",
    "schema": {
     "json": {
      "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -12591,7 +12585,7 @@
   {
    "value": "infrastructure_damage",
    "display": "Infrastructure Damage",
-   "category": "hwc",
+   "category": "field_monitoring",
    "schema": {
     "json": {
      "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -12975,7 +12969,7 @@
   {
    "value": "hwc_livestock_predation",
    "display": "HWC Livestock Predation",
-   "category": "hwc",
+   "category": "field_monitoring",
    "schema": {
     "json": {
      "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -13522,7 +13516,7 @@
   {
    "value": "human_death",
    "display": "Human Death",
-   "category": "hwc",
+   "category": "field_monitoring",
    "schema": {
     "json": {
      "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -13992,7 +13986,7 @@
   {
    "value": "human_injury",
    "display": "Human Injury",
-   "category": "hwc",
+   "category": "field_monitoring",
    "schema": {
     "json": {
      "$schema": "https://json-schema.org/draft/2020-12/schema",
