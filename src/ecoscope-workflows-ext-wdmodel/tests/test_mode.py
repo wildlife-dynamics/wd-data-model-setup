@@ -3,12 +3,10 @@
 Skipped where ecoscope-platform is not installed -- the rest of the suite is
 deliberately pure and runs anywhere, and the task module cannot be.
 
-What these protect is the promise the form makes: on a standard run the
-second data source is cosmetic. The app asks for it every time, so a standard
-run always arrives holding a live client for some instance. If anything in
-the task read that client, or inferred intent from the copy fields, a stray
-selection would silently turn a setup into a copy -- against an instance the
-operator only picked to get past the wizard.
+What these protect is the promise the form makes: the source instance is a
+field of the copy branch, so a standard run cannot carry one at all. The
+Union is what guarantees that -- not a convention the task has to honour --
+and these tests fail if the branches ever grow each other's fields back.
 """
 
 import pytest
@@ -16,8 +14,8 @@ import pytest
 pytest.importorskip("ecoscope.platform.connections")
 
 from ecoscope_workflows_ext_wdmodel.tasks.setup._apply import (  # noqa: E402
-    COPY,
-    STANDARD,
+    CopyFromInstance,
+    StandardModel,
     apply_data_model,
 )
 
@@ -52,68 +50,59 @@ class Recording:
 def test_standard_mode_never_touches_the_source():
     df = apply_data_model(
         client=Recording(),
-        copy_from=Exploding(),
-        mode=STANDARD,
-        categories=["animal_health"],
+        what=StandardModel(categories=["animal_health"]),
         dry_run=True,
     )
     assert not df.empty
 
 
-def test_standard_mode_ignores_copy_fields_that_were_filled_in():
-    """Left over from an earlier run, or clicked by mistake. Either way the
-    dropdown decides, not the fields."""
-    df = apply_data_model(
-        client=Recording(),
-        copy_from=Exploding(),
-        mode=STANDARD,
-        categories=["animal_health"],
-        copy_event_types=["wildlife_sighting"],
-        copy_into_category="field_monitoring",
-        collision_prefix="fm_",
-        dry_run=True,
-    )
-    assert set(df["WHAT"]) <= {"category", "choice", "event type", "schema", "warning"}
-    assert "wildlife_sighting" not in set(df["VALUE"])
+def test_copy_with_no_categories_says_so():
+    import pytest as _p
 
-
-def test_copy_mode_with_no_event_types_says_so():
-    with pytest.raises(ValueError, match="no event types were chosen"):
+    with _p.raises(ValueError, match="no categories"):
         apply_data_model(
             client=Recording(),
-            copy_from=Recording(),
-            mode=COPY,
+            what=CopyFromInstance(source={"name": "somewhere"}, from_categories=[]),
             dry_run=True,
         )
 
 
-def test_copy_mode_with_no_source_says_so():
-    with pytest.raises(ValueError, match="no source instance"):
+def test_copy_with_no_source_instance_says_so():
+    import pytest as _p
+
+    with _p.raises(ValueError, match="no source instance"):
         apply_data_model(
             client=Recording(),
-            copy_from=None,
-            mode=COPY,
-            copy_event_types=["wildlife_sighting"],
+            what=CopyFromInstance(
+                source={"name": ""}, from_categories=["field_monitoring"]
+            ),
             dry_run=True,
         )
 
 
-def test_copy_mode_drops_the_species_fields_and_says_it_did():
-    """Repointing a copied form's species field at a list chosen for the
-    standard model would change what the copy means without saying so."""
-    df = apply_data_model(
-        client=Recording(),
-        copy_from=Recording(),
-        mode=COPY,
-        copy_event_types=["anything"],
-        species_list="wildlifesightingrep_species",
-        dry_run=True,
-    )
-    assert any("was ignored" in d for d in df["DETAIL"])
+def test_the_union_hides_the_other_branch():
+    """A StandardModel carries no copy fields at all, so there is nothing
+    left over for a later run to pick up."""
+    assert not hasattr(StandardModel(), "from_categories")
+    assert not hasattr(StandardModel(), "source")
+
+    copy = CopyFromInstance(source={"name": "x"})
+    assert not hasattr(copy, "categories")
+    assert not hasattr(copy, "species_list")
 
 
-def test_the_default_is_the_standard_model():
-    """Submitting the untouched form must not copy."""
+def test_the_source_connection_belongs_to_the_copy_branch_only():
+    """If the connection ever moves back to the task signature it renders on
+    every run, including standard ones that never read it."""
     import inspect
 
-    assert inspect.signature(apply_data_model).parameters["mode"].default == STANDARD
+    assert "copy_source" not in inspect.signature(apply_data_model).parameters
+    assert "source" in CopyFromInstance.model_fields
+
+
+def test_the_default_branch_is_the_standard_model():
+    from typing import get_args
+
+    from ecoscope_workflows_ext_wdmodel.tasks.setup._apply import Setup
+
+    assert get_args(Setup)[0] is StandardModel

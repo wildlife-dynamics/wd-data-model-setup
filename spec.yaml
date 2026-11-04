@@ -6,14 +6,43 @@ requirements:
     channel: https://repo.prefix.dev/ecoscope-workflows/
 
   - name: ecoscope-workflows-ext-wdmodel
-    version: 0.1.0
-    channel: https://repo.prefix.dev/ecoscope-workflows-custom/
+    version: "*"
+    channel: file:///tmp/ecoscope-workflows-custom/release/artifacts/
 
   - name: pydeck
     version: 0.9.2
     channel: conda-forge
 
 rjsf-overrides:
+  # No EarthRangerEnumResolver anywhere. It was on the copy branch's event
+  # type field, to fill it from the source instance, and it cannot work while
+  # the source connection lives inside the Union branch. Three
+  # experiments, one variable each:
+  #
+  #   depends_on                                      form builds   list loads
+  #   $defs.CopyFromInstance...source.properties.name     yes          NO
+  #   properties.setup...what.properties.source...name    NO            -
+  #   properties.er_target...data_source.properties.name  yes          yes
+  #
+  # Row 1 resolves -- the alias is right and the form builds -- and the
+  # lookup still fails with a connection error. Row 2 does not resolve at
+  # all: the properties-rooted alias does not exist on a node inside an
+  # anyOf, only the $defs-rooted one does. Row 3 is the same resolver on the
+  # same field inside the same branch, reading a TOP-LEVEL connection, and it
+  # works. So a resolver field inside a Union branch is fine; a CONNECTION
+  # inside one cannot feed a source-options lookup.
+  #
+  # That makes the hidden source picker and the event-type dropdown mutually
+  # exclusive, and the hidden picker won: copying is the rarer path and is
+  # always deliberate, while every single run pays for a connection field it
+  # does not use.
+  #
+  # The copy branch therefore selects CATEGORIES, typed. Selecting types was
+  # only ever to suit the resolver -- it could list an instance's types and
+  # not its categories -- and with nothing to list, a category is two or
+  # three values rather than twenty-seven. types_in() answers a typo with the
+  # near misses.
+
   properties:
     # The stock copy ("Select one of your configured data sources") assumes you
     # know a data source is a saved EarthRanger connection. Say which instance
@@ -24,72 +53,52 @@ rjsf-overrides:
       The instance being written to, chosen from the connections saved under
       Data Sources. The same credentials read and write -- there is no second
       login.
-    # The second connection is asked for on every run, including standard
-    # ones that never read it. That is the app, not this spec: Ecoscope
-    # Desktop collects connections in their own wizard step, derived from the
-    # spec's connection TASKS, and nothing in the parameter schema reaches
-    # that step. Four attempts confirmed it:
+
+    # The source connection is a field of the CopyFromInstance branch, so a
+    # standard run does not render it at all. Five earlier attempts did not
+    # get there:
     #
-    #  1. er_source.required: []        -- asterisk stayed. It comes from the
+    #  1. a second set_er_connection task -- Desktop collects connection TASKS
+    #                                        in their own wizard step and
+    #                                        demands a selection every run.
+    #  2. er_source.required: []        -- asterisk stayed. It comes from the
     #                                      shared $defs/EarthRangerConnection,
     #                                      where `name` is required.
-    #  2. default: {"name": ""}         -- satisfies that `required`, and the
+    #  3. default: {"name": ""}         -- satisfies that `required`, and the
     #                                      form still refused to submit.
-    #  3. an RJSF `dependencies` toggle -- hid the field and broke three
-    #                                      other things. additionalProperties
-    #                                      had to be opened for the branch's
-    #                                      data_source, which made the app
-    #                                      render a free-form key editor and
-    #                                      fail its own uiSchema order check;
-    #                                      and the resolver below died with
-    #                                      "Ambiguous or unavailable
-    #                                      dependency", which settles that
-    #                                      question: depends_on is resolved
-    #                                      against the SCHEMA. Anything that
-    #                                      moves data_source takes the event
-    #                                      type picker with it.
-    #  4. a separate copy template      -- worked, but made the operator pick
-    #                                      a template before they could see
-    #                                      what either one did.
+    #  4. an RJSF `dependencies` toggle -- hid the field and broke three other
+    #                                      things, including the resolver.
+    #  5. a top-level task parameter    -- rendered, was discovered, and was
+    #                                      not required -- but showed on every
+    #                                      run, which is what this replaces.
     #
-    # So the connection stays, and `mode` makes it inert: on a standard run
-    # the task never touches copy_from. Cosmetic there, load-bearing in copy
-    # mode. That is a property of the task, not of the form -- which is why
-    # it is a dropdown the task reads, and not an inference from whether the
-    # copy fields happen to be filled.
-    er_source.properties.data_source.title: "Instance to copy from"
-    er_source.properties.data_source.description: >-
-      Only used when the mode below is set to copying, and only ever read,
-      never written to. On a standard-model run nothing reads it, so point it
-      at any instance - the same one you are setting up is the simplest
-      answer. The app asks for it either way.
-
-    "Set up.properties.setup.properties.mode.title": "What this run should do"
-    "Set up.properties.setup.properties.copy_event_types.title": "Event types to copy"
-    "Set up.properties.setup.properties.copy_into_category.title": "Put them all in this category (blank = keep the source's)"
-    "Set up.properties.setup.properties.collision_prefix.title": "Prefix for clashing choice lists (e.g. fm_)"
-    # Populates the list from the source connection, and refreshes when it
-    # changes. The resolver supports patrol_type, event_type and
-    # spatial_feature_group - event CATEGORIES are not supported, which is
-    # why the copy path selects types and derives their categories.
+    # The generated metadata.get_data_connection_property_names() walks two
+    # levels of params.json and so cannot see a $ref inside $defs. That is
+    # not what registers the picker: Desktop's form layer runs its own scan
+    # that recurses through $ref, properties, items and anyOf/oneOf. Verified
+    # by reading the app bundle, and confirmed by the picker rendering.
     #
-    # depends_on is resolved against the SCHEMA, so er_source must stay a
-    # top-level task with data_source directly under its properties.
-    "Set up.properties.setup.properties.copy_event_types.ecoscope:transform":
-      - transformer: EarthRangerEnumResolver
-        transformer_kws:
-          type: event_type
-          depends_on: properties.er_source.properties.data_source.properties.name
+    # depends_on below is matched against a node's alias set, and $defs-rooted
+    # aliases are explicitly supported (with a referenceScopes check that both
+    # ends belong to the same instantiation of the branch). The form builds
+    # without complaint, so the alias resolves.
+    #
+    # OPEN: the picker still fails with "Options could not load because of a
+    # connection problem", with a valid source selected and with any source.
+    # That message is the generic rendering of several outcomes (network,
+    # timeout, permission_denied, source_unavailable, reconnect_required,
+    # invalid_response), so it does not by itself mean the instance is
+    # unreachable. The separate source-options lookup carries an OPTIONAL
+    # branchSelections array naming the live anyOf branch; whether a lookup
+    # can follow a sourcePath through a Union branch is the thing to confirm.
+    # If it cannot, the hidden connection and the picker cannot both be had.
 
     "Set up.properties.setup.title": " "
     # A multi-select array takes a large subhead-style label keyed only on
     # uniqueItems, with no uiSchema escape hatch -- a single space is how you
     # suppress it. An empty string would fall back to the raw property name.
-    "Set up.properties.setup.properties.categories.title": " "
     "Set up.properties.setup.properties.dry_run.title": "Dry run - create nothing"
     "Set up.properties.setup.properties.dry_run.default": true
-    "Set up.properties.setup.properties.species_list.title": "Use a species list already on this instance"
-    "Set up.properties.setup.properties.species_csv.title": "Or load species from a CSV file"
     "Set up.properties.setup.properties.activate.title": "Activate the event types immediately"
     "Set up.properties.setup.properties.activate.default": false
     "Set up.properties.setup.properties.prefix.title": "Event type prefix (blank for a real build)"
@@ -117,10 +126,6 @@ workflow:
     id: er_target
     task: set_er_connection
 
-  - name: Instance to copy from (ignored unless the mode says to copy)
-    id: er_source
-    task: set_er_connection
-
   # --------------------------------------------------------------- set up ---
   - title: Set up
     type: task-group
@@ -143,7 +148,6 @@ workflow:
         task: ecoscope_workflows_ext_wdmodel.tasks.setup.apply_data_model
         partial:
           client: ${{ workflow.er_target.return }}
-          copy_from: ${{ workflow.er_source.return }}
 
   # --------------------------------------------------------------- results ---
   # draw_* tasks return HTML; the widget tasks want a persisted file URL.
